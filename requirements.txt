@@ -1,1 +1,1 @@
-QcloudApi==0.2
+qcloudapi-sdk-python==2.0.14
