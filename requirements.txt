@@ -1,1 +1,2 @@
-qcloudapi-sdk-python==2.0.14
+qcloudapi-sdk-python==2.0.15
+PyYAML==3.13
