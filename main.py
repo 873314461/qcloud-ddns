@@ -38,6 +38,9 @@ def main():
     logging.info("Get record id: %s" % record_id)
     while True:
         ip = get_ip()
+        if ip is None:
+            time.sleep(10)
+            continue
         ip = str(ip, encoding='utf-8')
         logging.debug("Current IP   : %s" % current_ip)
         logging.debug("New IP       : %s" % ip)
@@ -77,7 +80,7 @@ def get_record_id(sub_domain):
         'subDomain': sub_domain,
         'recordType': 'A',
     }
-
+    result = None
     try:
         service = QcloudApi(module, config)
         logging.debug("Get Query URL: %s" %
@@ -85,19 +88,23 @@ def get_record_id(sub_domain):
         result = service.call(action, action_params)
         result = str(result, encoding='utf-8')
         result = json.loads(result)
-        if len(result['data']['records']) != 1:
-            return None
-        return result['data']['records'][0]['id'], result['data']['records'][0]['value']
-
     except Exception:
         import traceback
-        print(traceback.format_exc())
+        logging.error(traceback.format_exc())
 
+    if result is None or len(result['data']['records']) != 1:
+        return None
+    return result['data']['records'][0]['id'], result['data']['records'][0]['value']
 
 def get_ip():
-    sock = socket.create_connection(('ns1.dnspod.net', 6666), 20)
-    ip = sock.recv(16)
-    sock.close()
+    ip = None
+    try:
+        sock = socket.create_connection(('ns1.dnspod.net', 6666), 20)
+        ip = sock.recv(16)
+    except Exception:
+        logging.info("connect to ns1.dnspod.net error")
+    finally:
+        sock.close()
     return ip
 
 
@@ -142,11 +149,12 @@ def change_ip(ip, record_id, sub_domain):
             logging.debug("Record weight: %s" %
                           result['data']['record']['weight'])
             return True
-
     except Exception:
         import traceback
-        print(traceback.format_exc())
+        logging.error(traceback.format_exc())
+    return False
 
 
 if __name__ == '__main__':
     main()
+
