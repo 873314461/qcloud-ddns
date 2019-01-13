@@ -93,7 +93,7 @@ def get_record_id(sub_domain):
         logging.error(traceback.format_exc())
 
     if result is None or len(result['data']['records']) != 1:
-        return None
+        return None, None
     return result['data']['records'][0]['id'], result['data']['records'][0]['value']
 
 def get_ip():
@@ -101,10 +101,9 @@ def get_ip():
     try:
         sock = socket.create_connection(('ns1.dnspod.net', 6666), 20)
         ip = sock.recv(16)
+        sock.close()
     except Exception:
         logging.info("connect to ns1.dnspod.net error")
-    finally:
-        sock.close()
     return ip
 
 
