@@ -98,6 +98,7 @@ def get_record_id(sub_domain):
     return result['data']['records'][0]['id'], result['data']['records'][0]['value']
 
 def get_ip():
+    global network_flag
     ip = None
     try:
         sock = socket.create_connection(('ns1.dnspod.net', 6666), 20)

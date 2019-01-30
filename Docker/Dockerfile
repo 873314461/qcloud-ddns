@@ -1,6 +1,6 @@
 FROM python:3.7.2-alpine3.8
 
-ENV QCLOUD_DDNS_VERSION 1.2
+ENV QCLOUD_DDNS_VERSION 1.2.1
 
 WORKDIR /qcloud-ddns
 
@@ -16,6 +16,8 @@ RUN apk update \
     && pip install -r requirements.txt --no-cache-dir \
     && rm requirements.txt \
     && sed -i "s/'config.yml'/'\/etc\/qcloud-ddns\/config.yml'/g" main.py
+
+ENV TZ=Asia/Shanghai
 
 CMD ["python", "main.py"]
 
