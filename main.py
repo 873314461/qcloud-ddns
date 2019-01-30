@@ -16,6 +16,7 @@ SECRET_KEY = 'xxx'
 DOMAIN = 'xxx'
 SUB_DOMAIN = 'xxx'
 
+network_flag = True
 
 def main():
     formatter = '%(asctime)s %(levelname)-8s %(filename)s:%(lineno)d\t%(threadName)-10s: %(message)s'
@@ -102,8 +103,13 @@ def get_ip():
         sock = socket.create_connection(('ns1.dnspod.net', 6666), 20)
         ip = sock.recv(16)
         sock.close()
+        if not network_flag:
+            logging.info("network is ok!")
+            network_flag = True
     except Exception:
-        logging.info("connect to ns1.dnspod.net error")
+        if network_flag:
+            logging.warning("network error!")
+            network_flag = False
     return ip
 
 
