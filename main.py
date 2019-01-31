@@ -3,70 +3,82 @@
 
 import json
 import logging
-import socket
 import sys
 import time
 
+import requests
 import yaml
 from QcloudApi.qcloudapi import QcloudApi
 
 CONFIG_PATH = 'config.yml'
 SECRET_ID = 'xxx'
 SECRET_KEY = 'xxx'
-DOMAIN = 'xxx'
-SUB_DOMAIN = 'xxx'
+CONFIG = {}
 
 network_flag = True
 
+
 def main():
-    formatter = '%(asctime)s %(levelname)-8s %(filename)s:%(lineno)d\t%(threadName)-10s: %(message)s'
-    logging.basicConfig(level=logging.INFO,
-                        filename='qcloud-ddns.log',
-                        format=formatter)
-    log = logging.getLogger()
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter(formatter))
-    log.addHandler(handler)
+    record_list = get_config()
+    record_ip_list = []
 
-    get_config()
-    logging.info("Domain       : %s" % DOMAIN)
-    logging.info("Sub domain   : %s" % SUB_DOMAIN)
-    sub_domain = SUB_DOMAIN
-    record_id, current_ip = get_record_id(sub_domain)
-    if record_id is None:
-        logging.error("No Sub Domain: %s" % sub_domain)
-        return
-    logging.info("Get record id: %s" % record_id)
-    while True:
-        ip = get_ip()
-        if ip is None:
-            time.sleep(10)
+    for domain, sub_domain, record_type in record_list:
+        record_id, current_ip = get_record_id(domain, sub_domain, record_type)
+        if record_id is None:
+            logging.error("No Sub Domain: %s" % sub_domain)
             continue
-        ip = str(ip, encoding='utf-8')
-        logging.debug("Current IP   : %s" % current_ip)
-        logging.debug("New IP       : %s" % ip)
 
-        if current_ip != ip and change_ip(ip, record_id, sub_domain):
-            logging.info(
-                "Change IP Successed! [%s] ==> [%s]" % (current_ip, ip))
-            current_ip = ip
-        time.sleep(30)
+        record_ip_list.append({
+            'domain': domain,
+            'sub_domain': sub_domain,
+            'type': record_type,
+            'id': record_id,
+            'old_ip': current_ip,
+            'new_ip': current_ip
+        })
+        logging.info(F"Get record {sub_domain}.{domain} id: {record_id}")
+    while True:
+        for item in record_ip_list:
+            item['new_ip'] = get_ip(item['type'] == 'AAAA')
+            if item['new_ip'] is None:
+                logging.debug('sleep {} s'.format(CONFIG['sleep_time'] / 2))
+                time.sleep(CONFIG['sleep_time'] / 2)
+                continue
+            logging.debug("Current IP   : %s" % item['old_ip'])
+            logging.debug("New IP       : %s" % item['new_ip'])
+
+            logging.debug(item['old_ip'])
+            logging.debug(item['new_ip'])
+            logging.debug(item['old_ip'] != item['new_ip'])
+            if item['old_ip'] != item['new_ip'] and change_ip(item):
+                logging.info("[%s] ==> [%s]" %
+                             (item['old_ip'], item['new_ip']))
+                item['old_ip'] = item['new_ip']
+        logging.debug('sleep {}s'.format(CONFIG['sleep_time']))
+        time.sleep(CONFIG['sleep_time'])
 
 
 def get_config():
-    global SECRET_ID, SECRET_KEY, DOMAIN, SUB_DOMAIN
+    global SECRET_ID, SECRET_KEY, CONFIG
     stream = open(CONFIG_PATH, 'r')
-    config = yaml.load(stream)
-    SECRET_ID = config['secret_id']
-    if SECRET_ID == 'your_secret_id':
-        logging.error("Config error!")
-        exit(-1)
-    SECRET_KEY = config['secret_key']
-    DOMAIN = list(config['domain'].keys())[0]
-    SUB_DOMAIN = config['domain'][DOMAIN][0]
+    CONFIG = yaml.load(stream)
+    SECRET_ID = CONFIG['secret_id']
+    SECRET_KEY = CONFIG['secret_key']
+    logging.info(CONFIG_PATH)
+    logging.info('=' * 40)
+    logging.info(F'secret_id: {SECRET_ID[:4]}xxxxxx{SECRET_ID[-4:]}')
+    logging.info(F'secret_key: {SECRET_KEY[:4]}xxxxxx{SECRET_KEY[-4:]}')
+    result = []
+    for domain, items in CONFIG['domains'].items():
+        for sub_domain, item in items.items():
+            for record_type in item:
+                logging.info(F'{sub_domain}.{domain}\t{record_type}')
+                result.append((domain, sub_domain, record_type,))
+    logging.info('=' * 40)
+    return result
 
 
-def get_record_id(sub_domain):
+def get_record_id(domain, sub_domain, record_type):
     module = 'cns'
     action = 'RecordList'
     config = {
@@ -77,9 +89,9 @@ def get_record_id(sub_domain):
         'SignatureMethod': 'HmacSHA256'
     }
     action_params = {
-        'domain': DOMAIN,
+        'domain': domain,
         'subDomain': sub_domain,
-        'recordType': 'A',
+        'recordType': record_type,
     }
     result = None
     try:
@@ -97,13 +109,18 @@ def get_record_id(sub_domain):
         return None, None
     return result['data']['records'][0]['id'], result['data']['records'][0]['value']
 
-def get_ip():
+
+def get_ip(ipv6=False):
     global network_flag
     ip = None
     try:
-        sock = socket.create_connection(('ns1.dnspod.net', 6666), 20)
-        ip = sock.recv(16)
-        sock.close()
+        http = requests.Session()
+        if ipv6:
+            result = http.get("https://api-ipv6.ip.sb/ip")
+        else:
+            result = http.get("https://api-ipv4.ip.sb/ip")
+        ip = result.text
+        print(result.text)
         if not network_flag:
             logging.info("network is ok!")
             network_flag = True
@@ -111,10 +128,10 @@ def get_ip():
         if network_flag:
             logging.warning("network error!")
             network_flag = False
-    return ip
+    return ip.strip()
 
 
-def change_ip(ip, record_id, sub_domain):
+def change_ip(record_obj):
     module = 'cns'
     action = 'RecordModify'
     config = {
@@ -125,12 +142,12 @@ def change_ip(ip, record_id, sub_domain):
         'SignatureMethod': 'HmacSHA256'
     }
     action_params = {
-        'domain': DOMAIN,
-        'recordId': record_id,
-        'subDomain': sub_domain,
-        'recordType': 'A',
+        'domain': record_obj['domain'],
+        'recordId': record_obj['id'],
+        'subDomain': record_obj['sub_domain'],
+        'recordType': record_obj['type'],
         'recordLine': '默认',
-        'value': ip
+        'value': record_obj['new_ip']
     }
 
     try:
@@ -140,6 +157,7 @@ def change_ip(ip, record_id, sub_domain):
         result = service.call(action, action_params)
         result = str(result, encoding='utf-8')
         result = json.loads(result)
+        logging.debug(result)
         if result['code'] != 0:
             logging.error("Code   : %s" % result['code'])
             logging.error("Message: %s" % result['message'])
@@ -162,5 +180,13 @@ def change_ip(ip, record_id, sub_domain):
 
 
 if __name__ == '__main__':
-    main()
+    formatter = '%(asctime)s %(levelname)-8s %(filename)s:%(lineno)d\t%(threadName)-10s: %(message)s'
+    logging.basicConfig(level=logging.INFO,
+                        filename='qcloud-ddns.log',
+                        format=formatter)
+    log = logging.getLogger()
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter(formatter))
+    log.addHandler(handler)
 
+    main()

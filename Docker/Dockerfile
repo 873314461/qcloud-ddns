@@ -1,6 +1,6 @@
 FROM python:3.7.2-alpine3.8
 
-ENV QCLOUD_DDNS_VERSION 1.2.1
+ENV QCLOUD_DDNS_VERSION 1.3
 
 WORKDIR /qcloud-ddns
 
