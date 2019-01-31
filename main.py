@@ -119,8 +119,7 @@ def get_ip(ipv6=False):
             result = http.get("https://api-ipv6.ip.sb/ip")
         else:
             result = http.get("https://api-ipv4.ip.sb/ip")
-        ip = result.text
-        print(result.text)
+        ip = result.text.strip()
         if not network_flag:
             logging.info("network is ok!")
             network_flag = True
@@ -128,7 +127,7 @@ def get_ip(ipv6=False):
         if network_flag:
             logging.warning("network error!")
             network_flag = False
-    return ip.strip()
+    return ip
 
 
 def change_ip(record_obj):
