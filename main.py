@@ -15,8 +15,8 @@ SECRET_ID = 'xxx'
 SECRET_KEY = 'xxx'
 CONFIG = {}
 
-network_flag = True
-
+ipv4_flag = True
+ipv6_flag = True
 
 def main():
     record_list = get_config()
@@ -111,22 +111,28 @@ def get_record_id(domain, sub_domain, record_type):
 
 
 def get_ip(ipv6=False):
-    global network_flag
+    global ipv4_flag, ipv6_flag
     ip = None
     try:
         http = requests.Session()
         if ipv6:
             result = http.get("https://api-ipv6.ip.sb/ip")
+            if not ipv6_flag:
+                logging.info("ipv6 is ok!")
+                ipv6_flag = True
         else:
             result = http.get("https://api-ipv4.ip.sb/ip")
+            if not ipv4_flag:
+                logging.info("ipv4 is ok!")
+                ipv4_flag = True
         ip = result.text.strip()
-        if not network_flag:
-            logging.info("network is ok!")
-            network_flag = True
     except Exception:
-        if network_flag:
-            logging.warning("network error!")
-            network_flag = False
+        if ipv6 and not ipv6_flag:
+            logging.info("ipv6 is ok!")
+            ipv6_flag = False
+        elif not ipv6 and not ipv4_flag:
+            logging.info("ipv4 is ok!")
+            ipv4_flag = False
     return ip
 
 
