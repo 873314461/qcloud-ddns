@@ -36,13 +36,12 @@ def main():
             'old_ip': current_ip,
             'new_ip': current_ip
         })
-        logging.info(F"Get record {sub_domain}.{domain} id: {record_id}")
+        logging.info(F"{record_id} {sub_domain}.{domain}({current_ip})")
     while True:
         for item in record_ip_list:
             item['new_ip'] = get_ip(item['type'] == 'AAAA')
             if item['new_ip'] is None:
                 logging.debug('sleep {} s'.format(CONFIG['sleep_time'] / 2))
-                time.sleep(CONFIG['sleep_time'] / 2)
                 continue
             logging.debug("Current IP   : %s" % item['old_ip'])
             logging.debug("New IP       : %s" % item['new_ip'])
@@ -127,11 +126,13 @@ def get_ip(ipv6=False):
                 ipv4_flag = True
         ip = result.text.strip()
     except Exception:
+        import traceback
+        logging.error(traceback.format_exc())
         if ipv6 and not ipv6_flag:
-            logging.info("ipv6 is ok!")
+            logging.warning("ipv6 error!")
             ipv6_flag = False
         elif not ipv6 and not ipv4_flag:
-            logging.info("ipv4 is ok!")
+            logging.warning("ipv4 error!")
             ipv4_flag = False
     return ip
 
